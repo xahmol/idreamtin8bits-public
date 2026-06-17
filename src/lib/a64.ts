@@ -220,18 +220,18 @@ export function parseAQL(query: string): Record<string, string> {
 // ── Search ────────────────────────────────────────────────────────────────────
 
 // String-field matching for name/group/handle, per the official Assembly64
-// home server protocol (per creator clarification, 2026-06): a bare value
-// is an exact match; '%' is a SQL-LIKE wildcard (e.g. "a%" = starts with
-// "a"); a lone '@' means "match everything" (filter ignored).
+// home server protocol: '%' is a SQL-LIKE wildcard (e.g. "a%" = starts with
+// "a"); a lone '@' means "match everything" (filter ignored). A bare value
+// with no wildcard is treated as an implicit prefix match (i.e. "vdc" behaves
+// like "vdc%") rather than requiring an exact match — most search UIs (and
+// users) expect partial input to behave as "starts with", not "equals".
 function matchesStringFilter(fieldValue: string, pattern: string): boolean {
   const field = fieldValue.toLowerCase();
   const pat   = pattern.toLowerCase();
   if (pat === '@') return true;
-  if (pat.includes('%')) {
-    const escaped = pat.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*');
-    return new RegExp(`^${escaped}$`).test(field);
-  }
-  return field === pat;
+  const likePattern = pat.includes('%') ? pat : pat + '%';
+  const escaped = likePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*');
+  return new RegExp(`^${escaped}$`).test(field);
 }
 
 export function searchIndex(

@@ -118,19 +118,20 @@ category integer (see "Screenshot cache key design" below).
 
 ### String filter matching (`name`, `group`, `handle`)
 
-> **Source note**: this behaviour was reported directly by the Assembly64
-> creator about the official reference home server (Docker image
-> `freabemania/assembly64-home-server`), not from published documentation.
+`%` is a SQL-LIKE wildcard (`a%` matches names starting with "a", `%a%`
+matches "a" anywhere); a lone `@` means "match everything" (filter
+ignored). A bare value with no wildcard is treated as an **implicit prefix
+match** — `(name:"uboot")` behaves exactly like `(name:"uboot%")`. This is
+implemented in `matchesStringFilter()` in `src/lib/a64.ts`.
 
-A bare value does an **exact** match (case-insensitive); `%` is a SQL-LIKE
-wildcard (`a%` matches any name starting with "a"); a lone `@` means "match
-everything" (filter ignored). This is implemented in
-`matchesStringFilter()` in `src/lib/a64.ts`.
-
-This is a behavioural change from naive substring ("contains") matching —
-if you're querying with a partial name and expecting a "contains" match,
-add a trailing `%` (e.g. `name%`) or surround it on both sides
-(`%name%` matches if "name" appears anywhere).
+> **Note**: per direct clarification from the Assembly64 creator, the
+> official reference home server (Docker image
+> `freabemania/assembly64-home-server`) requires an **exact** match unless
+> `%` is given explicitly — a bare value does not auto-prefix-match there.
+> This starter intentionally diverges from that for usability (most users
+> expect partial input to behave as "starts with"). If you need strict
+> protocol parity instead, change the fallback in `matchesStringFilter()`
+> from `pat + '%'` to an exact-equality check.
 
 ---
 

@@ -1,0 +1,25 @@
+{
+  "name": "idreamtin8bits-public",
+  "type": "module",
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "postinstall": "patch-package"
+  },
+  "dependencies": {
+    "@astrojs/markdoc": "^0.13.3",
+    "@tailwindcss/postcss": "^4.2.4",
+    "astro": "^5.18.1",
+    "astro-aws-amplify": "0.4.0",
+    "tailwindcss": "^4.2.4"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.1"
+  }
+}

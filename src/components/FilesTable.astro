@@ -1,0 +1,258 @@
+---
+import { formatSize, fileExt, MEATLOAF_EXTS } from '../lib/files.ts';
+import type { DirEntry } from '../lib/files.ts';
+import { ARCHIVE_CONFIG } from '../config/retro-archive.ts';
+
+interface Props {
+  entries:           DirEntry[];
+  subPath:           string;           // "" for root, "c64" or "c64/app1" for subdirs
+  platformMeatloaf?: boolean;          // whether this platform supports Meatloaf; default true
+}
+
+const { entries, subPath, platformMeatloaf = true } = Astro.props;
+
+function showMl(name: string): boolean {
+  if (!platformMeatloaf) return false;
+  const ext = name.includes('.') ? '.' + name.split('.').pop()!.toLowerCase() : '';
+  return MEATLOAF_EXTS.has(ext);
+}
+const files = entries.filter(e => !e.isDir);
+const dirs  = entries.filter(e =>  e.isDir);
+
+function entryHref(name: string): string {
+  return `/files/${subPath ? subPath + '/' : ''}${name}`;
+}
+
+function sendMeatloafUrl(name: string): string {
+  const fileUrl = `${ARCHIVE_CONFIG.siteUrl}/files/${subPath ? subPath + '/' : ''}${name}`;
+  return `https://api.meatloaf.cc/sendtomeatloaf/?${fileUrl}`;
+}
+
+const mlShortcode = ARCHIVE_CONFIG.meatloafShortcode;
+const mlHostUpper = ARCHIVE_CONFIG.meatloafHostname.toUpperCase();
+---
+
+{entries.length === 0 ? (
+  <p class="files-empty">No files available yet.</p>
+) : (
+  <div class="btn-legend">
+    {platformMeatloaf && <span><span class="legend-ml">ML</span> Show Meatloaf LOAD commands</span>}
+    {platformMeatloaf && <span><span class="legend-send"><i class="fas fa-paper-plane"></i></span> Send file directly to Meatloaf device</span>}
+    <span><span class="legend-dl"><i class="fas fa-download"></i></span> Download file</span>
+  </div>
+  <div class="files-table-wrap">
+    <table class="files-table">
+      <thead>
+        <tr>
+          <th class="col-name">Name</th>
+          <th class="col-type">Type</th>
+          <th class="col-size">Size</th>
+          <th class="col-actions"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {entries.map(e => (
+          <>
+            <tr>
+              <td class="col-name">
+                {e.isDir
+                  ? <a href={entryHref(e.name)} class="dir-link">
+                      <i class="fas fa-folder"></i> {e.name}
+                    </a>
+                  : <a href={entryHref(e.name)} class="file-link">{e.name}</a>
+                }
+              </td>
+              <td class="col-type">
+                <span class={`file-type${e.isDir ? ' type-dir' : ''}`}>
+                  {e.isDir ? 'DIR' : fileExt(e.name)}
+                </span>
+              </td>
+              <td class="col-size">{e.isDir ? '--' : formatSize(e.size)}</td>
+              <td class="col-actions">
+                {!e.isDir && (
+                  <>
+                    {showMl(e.name) && (
+                      <button
+                        class="ml-btn"
+                        data-name={e.name.toUpperCase()}
+                        data-path={subPath.toUpperCase()}
+                        aria-label={`Meatloaf load commands for ${e.name}`}
+                        aria-expanded="false"
+                        title="Show Meatloaf LOAD commands"
+                      >ML</button>
+                    )}
+                    {showMl(e.name) && (
+                      <a
+                        href={sendMeatloafUrl(e.name)}
+                        class="send-btn"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Send ${e.name} to Meatloaf device`}
+                        title="Send directly to Meatloaf Wi-Fi device"
+                      ><i class="fas fa-paper-plane"></i></a>
+                    )}
+                    <a
+                      href={entryHref(e.name)}
+                      download
+                      class="dl-btn"
+                      aria-label={`Download ${e.name}`}
+                    ><i class="fas fa-download"></i></a>
+                  </>
+                )}
+              </td>
+            </tr>
+            {!e.isDir && (
+              <tr class="ml-detail-row" hidden>
+                <td colspan="4">
+                  <div class="ml-detail"></div>
+                </td>
+              </tr>
+            )}
+          </>
+        ))}
+      </tbody>
+    </table>
+    <p class="files-count">
+      {files.length} file{files.length !== 1 ? 's' : ''}
+      {dirs.length > 0 ? `, ${dirs.length} folder${dirs.length !== 1 ? 's' : ''}` : ''}
+    </p>
+  </div>
+)}
+
+<style>
+  .files-empty { color: #888; font-style: italic; }
+
+  .files-table-wrap { overflow-x: auto; margin-bottom: 48px; }
+
+  .files-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .files-table thead tr { background: #333; color: #fff; }
+  .files-table th { padding: 12px 16px; text-align: left; font-weight: 600; letter-spacing: .03em; white-space: nowrap; }
+  .files-table tbody tr { border-bottom: 1px solid #e8e8ee; }
+  .files-table tbody tr:hover:not(.ml-detail-row) { background: #f5f5fa; }
+  .files-table td { padding: 11px 16px; vertical-align: middle; }
+
+  .col-name    { width: 100%; }
+  .col-type, .col-actions { white-space: nowrap; }
+  .col-size    { white-space: nowrap; text-align: right; }
+  td.col-size  { color: #666; }
+  .col-actions { text-align: right; padding-right: 12px; }
+
+  .dir-link { color: #333; text-decoration: none; font-weight: 600; }
+  .dir-link:hover { color: #ef5826; text-decoration: none; }
+  .dir-link i { color: #ef5826; margin-right: 6px; }
+
+  .file-link { color: #333; text-decoration: none; font-weight: 500; }
+  .file-link:hover { color: #ef5826; text-decoration: underline; }
+
+  .file-type { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .06em; background: #f0f0f5; color: #555; padding: 2px 7px; border-radius: 3px; }
+  .type-dir  { background: #fff3e0; color: #e65100; }
+
+  .ml-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 28px; padding: 0 8px; margin-right: 6px;
+    border: 1px solid #ef5826; border-radius: 4px;
+    background: #fff; color: #ef5826;
+    font-size: 11px; font-weight: 700; letter-spacing: .05em;
+    cursor: pointer; transition: background .15s, color .15s;
+  }
+  .ml-btn:hover, .ml-btn.active { background: #ef5826; color: #fff; }
+
+  .send-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 4px; margin-right: 6px;
+    border: 1px solid #ef5826;
+    background: #fff; color: #ef5826; text-decoration: none;
+    transition: background .15s, color .15s;
+  }
+  .send-btn:hover { background: #ef5826; color: #fff; text-decoration: none; }
+  .send-btn i { font-size: 12px; }
+
+  .dl-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 4px;
+    background: #ef5826; color: #fff; text-decoration: none;
+    transition: background .15s;
+  }
+  .dl-btn:hover { background: #d83d0a; color: #fff; text-decoration: none; }
+  .dl-btn i { font-size: 12px; }
+
+  /* ML detail rows — JS injects child elements so use :global */
+  .ml-detail-row td { padding: 0; border-bottom: 2px solid #ef5826; }
+  .ml-detail { padding: 12px 16px 14px; background: #fafafe; display: flex; flex-wrap: wrap; gap: 16px; }
+
+  :global(.ml-cmd-group) { min-width: 260px; flex: 1; }
+  :global(.ml-cmd-label) { display: block; font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+  :global(.ml-cmd-row)   { display: flex; align-items: center; gap: 8px; background: #1e1e1e; border-radius: 4px; padding: 8px 12px; }
+  :global(.ml-cmd-row code) { flex: 1; background: none; color: #fff; font-size: 12px; padding: 0; margin: 0; display: block; word-break: break-all; }
+  :global(.ml-copy-btn)  { flex-shrink: 0; background: none; border: none; color: #aaa; cursor: pointer; padding: 2px 4px; font-size: 13px; transition: color .15s; }
+  :global(.ml-copy-btn:hover) { color: #fff; }
+
+  .files-count { font-size: 13px; color: #999; text-align: right; margin-top: 10px; }
+
+  .btn-legend { display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; color: #666; margin-bottom: 10px; }
+  .legend-ml   { display: inline-flex; align-items: center; justify-content: center; height: 20px; padding: 0 6px; border: 1px solid #ef5826; border-radius: 3px; background: #fff; color: #ef5826; font-size: 10px; font-weight: 700; letter-spacing: .05em; vertical-align: middle; }
+  .legend-send { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 1px solid #ef5826; border-radius: 3px; background: #fff; color: #ef5826; font-size: 10px; vertical-align: middle; }
+  .legend-dl   { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 3px; background: #ef5826; color: #fff; font-size: 10px; vertical-align: middle; }
+</style>
+
+<script define:vars={{ mlShortcode, mlHostUpper }}>
+  document.querySelectorAll('.ml-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const row       = btn.closest('tr');
+      const detailRow = row?.nextElementSibling;
+      if (!detailRow?.classList.contains('ml-detail-row')) return;
+
+      if (detailRow.hidden) {
+        const fname  = btn.dataset.name ?? '';
+        const fpath  = btn.dataset.path ?? '';
+        const full   = fpath ? `${fpath}/${fname}` : fname;
+        const detail = detailRow.querySelector('.ml-detail')!;
+
+        if (!detail.children.length) {
+          const cmds = [
+            ['Shortcode', `LOAD"ML:${mlShortcode}/${full}",8`],
+            ['URL',       `LOAD"HTTPS://${mlHostUpper}/${full}",8`],
+          ];
+          for (const [label, cmd] of cmds) {
+            const grp   = document.createElement('div');
+            grp.className = 'ml-cmd-group';
+
+            const lbl   = document.createElement('span');
+            lbl.className = 'ml-cmd-label';
+            lbl.textContent = label;
+            grp.appendChild(lbl);
+
+            const cmdRow = document.createElement('div');
+            cmdRow.className = 'ml-cmd-row';
+
+            const code   = document.createElement('code');
+            code.textContent = cmd;
+            cmdRow.appendChild(code);
+
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'ml-copy-btn';
+            copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+            copyBtn.addEventListener('click', e => {
+              e.stopPropagation();
+              navigator.clipboard?.writeText(cmd).then(() => {
+                const icon = copyBtn.querySelector('i');
+                if (icon) { icon.className = 'fas fa-check'; setTimeout(() => { icon.className = 'fas fa-copy'; }, 1500); }
+              });
+            });
+            cmdRow.appendChild(copyBtn);
+            grp.appendChild(cmdRow);
+            detail.appendChild(grp);
+          }
+        }
+
+        detailRow.hidden = false;
+        btn.classList.add('active');
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        detailRow.hidden = true;
+        btn.classList.remove('active');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  });
+</script>

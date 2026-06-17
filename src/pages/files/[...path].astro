@@ -1,0 +1,293 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import FilesTable from '../../components/FilesTable.astro';
+import AppCard from '../../components/AppCard.astro';
+import { Image } from 'astro:assets';
+import { getCollection, render } from 'astro:content';
+import { findFilesRoot, buildEntries, buildPrg, pathExists } from '../../lib/files.ts';
+import { getPlatformBySlug } from '../../lib/platforms.ts';
+import { getAppsByPlatform } from '../../lib/applications.ts';
+import type { PlatformMeta } from '../../lib/platforms.ts';
+import type { AppMeta } from '../../lib/applications.ts';
+import type { DirEntry } from '../../lib/files.ts';
+import type { ImageMetadata } from 'astro';
+
+// Sanitise and validate path
+const rawPath = Astro.params.path ?? '';
+if (rawPath.split('/').some(s => s === '..' || s === '.')) {
+  return new Response('Not Found', { status: 404 });
+}
+const subPath = rawPath.replace(/^\/+|\/+$/g, '').toLowerCase();
+
+if (subPath && !pathExists(subPath)) {
+  // Allow platform pages even when their directory has no files yet;
+  // check that depth-1 paths match a known platform slug.
+  const segs = subPath.split('/').filter(Boolean);
+  if (segs.length !== 1) {
+    return new Response('Not Found', { status: 404 });
+  }
+  const maybeP = await getPlatformBySlug(segs[0]);
+  if (!maybeP) {
+    return new Response('Not Found', { status: 404 });
+  }
+}
+
+const filesRoot    = findFilesRoot();
+const pathSegments = subPath.split('/').filter(Boolean);
+const depth        = pathSegments.length;
+
+// Meatloaf UA: return PRG listing
+const ua = Astro.request.headers.get('user-agent') ?? '';
+if (ua.includes('MEATLOAF')) {
+  const hostname = new URL(Astro.request.url).hostname;
+  const entries  = await buildEntries(subPath, Astro.url.origin, filesRoot);
+  return new Response(buildPrg(hostname, subPath, entries), {
+    headers: {
+      'Content-Type':        'application/octet-stream',
+      'Content-Disposition': 'attachment; filename="index.prg"',
+    },
+  });
+}
+
+// ── Depth-specific data ──────────────────────────────────────────────────────
+
+let platform:    PlatformMeta | null = null;
+let appsMeta:    Map<string, AppMeta> = new Map();
+let currentApp:  AppMeta | null = null;
+let AppContent:  any = null;
+let entries:     DirEntry[] = [];
+let dirEntries:  DirEntry[] = [];
+let fileEntries: DirEntry[] = [];
+
+if (depth >= 1) {
+  platform = await getPlatformBySlug(pathSegments[0]);
+}
+
+if (depth === 1) {
+  [appsMeta, entries] = await Promise.all([
+    getAppsByPlatform(pathSegments[0]),
+    buildEntries(pathSegments[0], Astro.url.origin, filesRoot),
+  ]);
+  dirEntries  = entries.filter(e => e.isDir);
+  fileEntries = entries.filter(e => !e.isDir);
+} else if (depth === 2) {
+  const appSlug    = pathSegments[1];
+  const appEntries = await getCollection('applications', e => e.id.replace(/\.mdoc$/, '') === appSlug);
+  entries = await buildEntries(subPath, Astro.url.origin, filesRoot);
+  if (appEntries.length) {
+    const e = appEntries[0];
+    const { Content } = await render(e);
+    AppContent = Content;
+    currentApp = {
+      slug:                e.id.replace(/\.mdoc$/, ''),
+      name:                e.data.name,
+      platform:            e.data.platform,
+      shortDescription:    e.data.shortDescription,
+      date:                e.data.date ?? undefined,
+      featureImage:        e.data.featureImage as ImageMetadata | undefined,
+      featureImageCaption: e.data.featureImageCaption,
+      githubRepo:          e.data.githubRepo,
+    };
+  }
+} else {
+  entries = await buildEntries(subPath, Astro.url.origin, filesRoot);
+}
+
+const ml = platform?.meatloaf ?? true;
+
+const pageTitle = depth === 2 && currentApp
+  ? currentApp.name
+  : depth === 1 && platform
+    ? platform.displayName
+    : pathSegments.map(p => p.toUpperCase()).join(' / ');
+
+// ── Breadcrumb ───────────────────────────────────────────────────────────────
+const breadcrumbs = [
+  { label: 'Files', href: '/files/', current: false },
+  ...pathSegments.map((part, i) => ({
+    label:   part.toUpperCase(),
+    href:    '/files/' + pathSegments.slice(0, i + 1).join('/') + '/',
+    current: i === pathSegments.length - 1,
+  })),
+];
+---
+
+<Layout
+  title={`${pageTitle} — File Archive`}
+  description={depth === 2 && currentApp
+    ? currentApp.shortDescription
+    : `Retro files in ${pageTitle}.`}
+>
+  <div class="files-page">
+    <div class="container">
+
+      <nav class="breadcrumb" aria-label="File path">
+        {breadcrumbs.map((crumb, i) => (
+          <>
+            {i > 0 && <span class="breadcrumb-sep">/</span>}
+            {crumb.current
+              ? <span class="breadcrumb-current">{crumb.label}</span>
+              : <a href={crumb.href} class="breadcrumb-link">{crumb.label}</a>
+            }
+          </>
+        ))}
+      </nav>
+
+      {/* ── Depth 1: platform page ─────────────────────────────────────── */}
+      {depth === 1 && (
+        <>
+          <div class="section-head">
+            <h2>{platform?.displayName ?? pathSegments[0].toUpperCase()}</h2>
+          </div>
+
+          {dirEntries.length > 0 && (
+            <div class="app-grid">
+              {dirEntries.map(e => {
+                const meta = appsMeta.get(e.name);
+                return meta
+                  ? <AppCard
+                      platform={pathSegments[0]}
+                      slug={e.name}
+                      name={meta.name}
+                      shortDescription={meta.shortDescription}
+                      date={meta.date}
+                      featureImage={meta.featureImage}
+                    />
+                  : <a href={`/files/${pathSegments[0]}/${e.name}/`} class="app-card-plain">
+                      <i class="fas fa-folder"></i> {e.name}
+                    </a>;
+              })}
+            </div>
+          )}
+
+          {fileEntries.length > 0 && (
+            <FilesTable entries={fileEntries} subPath={pathSegments[0]} platformMeatloaf={ml} />
+          )}
+        </>
+      )}
+
+      {/* ── Depth 2: application page ──────────────────────────────────── */}
+      {depth === 2 && (
+        <>
+          {currentApp ? (
+            <>
+              {currentApp.featureImage && (
+                <figure class="app-feature">
+                  <Image
+                    src={currentApp.featureImage as ImageMetadata}
+                    alt={currentApp.name}
+                    width={900}
+                    height={300}
+                    class="app-feature-img"
+                  />
+                  {currentApp.featureImageCaption && (
+                    <figcaption class="app-feature-caption">{currentApp.featureImageCaption}</figcaption>
+                  )}
+                </figure>
+              )}
+
+              <div class="app-header">
+                <div>
+                  <h2 class="app-title">{currentApp.name}</h2>
+                  {currentApp.date && <span class="app-date">{currentApp.date}</span>}
+                </div>
+                {currentApp.githubRepo && (
+                  <a href={currentApp.githubRepo} target="_blank" rel="noopener" class="github-btn">
+                    <i class="fab fa-github"></i> GitHub
+                  </a>
+                )}
+              </div>
+
+              <p class="app-short-desc">{currentApp.shortDescription}</p>
+
+              {AppContent && (
+                <div class="app-body">
+                  <AppContent />
+                </div>
+              )}
+
+              <hr class="app-divider" />
+            </>
+          ) : (
+            <div class="section-head"><h2>{pageTitle}</h2></div>
+          )}
+
+          <FilesTable entries={entries} subPath={subPath} platformMeatloaf={ml} />
+        </>
+      )}
+
+      {/* ── Depth 3+: generic fallback ─────────────────────────────────── */}
+      {depth >= 3 && (
+        <>
+          <div class="section-head"><h2>{pageTitle}</h2></div>
+          <FilesTable entries={entries} subPath={subPath} platformMeatloaf={ml} />
+        </>
+      )}
+
+    </div>
+  </div>
+</Layout>
+
+<style>
+  .files-page { padding: 100px 0 64px; }
+
+  .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 12px; flex-wrap: wrap; }
+  .breadcrumb-link { color: #ef5826; text-decoration: none; }
+  .breadcrumb-link:hover { text-decoration: underline; }
+  .breadcrumb-sep { color: #999; }
+  .breadcrumb-current { color: #555; font-weight: 600; }
+  .section-head { margin-bottom: 24px; }
+
+  /* Platform app grid */
+  .app-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+  }
+
+  .app-card-plain {
+    display: flex; align-items: center; gap: 8px;
+    padding: 16px; border: 1px solid #e0e0e6; border-radius: 6px;
+    background: #fff; text-decoration: none; color: #333; font-weight: 600;
+    transition: border-color .15s;
+  }
+  .app-card-plain:hover { border-color: #ef5826; color: #ef5826; }
+  .app-card-plain i { color: #ef5826; }
+
+  /* App page */
+  .app-feature { margin: 0 0 24px; }
+  .app-feature-img { width: 100%; max-height: 300px; object-fit: cover; border-radius: 6px; display: block; }
+  .app-feature-caption { font-size: 12px; color: #777; margin-top: 6px; font-style: italic; }
+
+  .app-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 16px; margin-bottom: 8px; flex-wrap: wrap;
+  }
+  .app-title { font-size: 28px; font-weight: 700; color: #222; margin: 0; }
+  .app-date { font-size: 13px; color: #999; display: block; margin-top: 4px; }
+
+  .github-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border: 1px solid #333; border-radius: 4px;
+    background: #fff; color: #333; text-decoration: none;
+    font-size: 13px; font-weight: 600; white-space: nowrap;
+    transition: background .15s, color .15s;
+  }
+  .github-btn:hover { background: #333; color: #fff; }
+
+  .app-short-desc {
+    font-size: 16px; color: #555; line-height: 1.6;
+    max-width: 720px; margin: 0 0 20px;
+    border-left: 3px solid #ef5826; padding-left: 14px;
+  }
+
+  .app-body { max-width: 720px; line-height: 1.7; color: #333; margin-bottom: 32px; }
+  .app-body :global(h2) { font-size: 20px; font-weight: 700; margin: 24px 0 8px; }
+  .app-body :global(h3) { font-size: 17px; font-weight: 600; margin: 20px 0 6px; }
+  .app-body :global(p)  { margin: 0 0 14px; }
+  .app-body :global(ul), .app-body :global(ol) { margin: 0 0 14px; padding-left: 24px; }
+  .app-body :global(a)  { color: #ef5826; }
+
+  .app-divider { border: none; border-top: 2px solid #e8e8ee; margin: 0 0 32px; }
+</style>

@@ -1,0 +1,386 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import FilesTable from '../../components/FilesTable.astro';
+import { findFilesRoot, buildEntries, buildPrg, getChildNames } from '../../lib/files.ts';
+import { getPlatforms } from '../../lib/platforms.ts';
+import { ARCHIVE_CONFIG } from '../../config/retro-archive.ts';
+
+const mlHostUpper = ARCHIVE_CONFIG.meatloafHostname.toUpperCase();
+
+const filesRoot = findFilesRoot();
+
+// Meatloaf UA: return a PRG directory listing, skip page render
+const ua = Astro.request.headers.get('user-agent') ?? '';
+if (ua.includes('MEATLOAF')) {
+  const hostname = new URL(Astro.request.url).hostname;
+  const entries  = await buildEntries('', Astro.url.origin, filesRoot);
+  return new Response(buildPrg(hostname, '', entries), {
+    headers: {
+      'Content-Type':        'application/octet-stream',
+      'Content-Disposition': 'attachment; filename="index.prg"',
+    },
+  });
+}
+
+const platforms = await getPlatforms();
+
+// Loose files at root (not inside any platform dir) — shown below the platform grid
+const rootChildren = getChildNames('');
+const rootFiles = [...rootChildren.entries()].filter(([, isDir]) => !isDir).map(([name]) => name);
+const looseEntries = rootFiles.length
+  ? await buildEntries('', Astro.url.origin, filesRoot).then(es => es.filter(e => !e.isDir))
+  : [];
+---
+
+<Layout
+  title="File Archive"
+  description="Retro files for Commodore and other 8-bit computers, available for direct download or via Meatloaf Wi-Fi IEC device."
+>
+  <div class="files-page">
+    <div class="container">
+
+      <div class="section-head">
+        <h2>File Archive</h2>
+      </div>
+
+      <p class="files-intro">
+        Retro software for Commodore and other 8-bit computers.
+        Download directly in your browser, load via a
+        <a href="https://meatloaf.cc" target="_blank" rel="noopener">Meatloaf</a> Wi-Fi IEC device on real hardware,
+        or browse via the <a href="#a64-access">Assembly64 PC client</a>.
+      </p>
+
+      <!-- Platform grid -->
+      <div class="platform-grid">
+        {platforms.map(p => (
+          <a href={`/files/${p.slug}/`} class="platform-card">
+            <span class="platform-name">{p.displayName}</span>
+            {p.meatloaf && <span class="platform-badge">Meatloaf</span>}
+          </a>
+        ))}
+      </div>
+
+      <!-- Loose root-level files (test files etc.) -->
+      {looseEntries.length > 0 && (
+        <div class="loose-files">
+          <h3 class="loose-title">Other files</h3>
+          <FilesTable entries={looseEntries} subPath="" platformMeatloaf={true} />
+        </div>
+      )}
+
+      <!-- ── Assembly64 access ─────────────────────────────────────────── -->
+      <div class="a64-note" id="a64-access">
+        <div class="a64-note-header">
+          <span class="a64-note-title">Assembly64 access</span>
+          <span class="a64-note-sub">Assembly64 Client &middot; PC</span>
+        </div>
+        <div class="a64-note-body">
+          <p>
+            C64 and C128 files in this archive can be browsed and downloaded directly from the
+            <a href="https://assembly64.hackerswithstyle.se/assembly/index.html" target="_blank" rel="noopener">Assembly64</a> PC client.
+            Custom home server support is not yet part of the official Ultimate II+ firmware &mdash;
+            it is currently only available in the Assembly64 PC client.
+          </p>
+
+          <div class="a64-url-block">
+            <p class="a64-label">Server Link</p>
+            <div class="a64-cmd">
+              <code>{ARCHIVE_CONFIG.siteUrl}</code>
+              <button class="copy-btn" data-copy={ARCHIVE_CONFIG.siteUrl} aria-label="Copy">
+                <i class="fas fa-copy"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="a64-steps">
+            <p class="a64-steps-title">How to add this server</p>
+            <ol>
+              <li>Download and install Assembly64 from <a href="https://assembly64.hackerswithstyle.se/assembly/index.html" target="_blank" rel="noopener">assembly64.hackerswithstyle.se</a>.</li>
+              <li>Open the <strong>Main</strong> tab &rarr; <strong>AQL Search</strong> section.</li>
+              <li>Locate the <strong>Server</strong> field on the right side of the filter bar. Click <strong>Edit</strong>.</li>
+              <li>In the <strong>Edit Home Servers</strong> dialog, click <strong>Add Server</strong>.</li>
+              <li>In the <strong>Add Server</strong> dialog:
+                <ul>
+                  <li><strong>Server Link:</strong> <kbd>{ARCHIVE_CONFIG.siteUrl}</kbd> &mdash; replace the pre-filled <kbd>http://</kbd> entirely</li>
+                  <li><strong>Description:</strong> <kbd>{ARCHIVE_CONFIG.a64Handle}</kbd> (or any label you prefer)</li>
+                  <li>Leave <strong>Public Server</strong> unchecked.</li>
+                </ul>
+              </li>
+              <li>Click <strong>Add Server</strong> to save.</li>
+              <li>Close the dialog and select your server's description from the Server dropdown.</li>
+              <li>Run a search query to browse entries. To show all your entries:
+                <ul>
+                  <li>Enter <kbd>{ARCHIVE_CONFIG.a64Group}</kbd> in the <strong>Group</strong> field, or type <kbd>(group:&quot;{ARCHIVE_CONFIG.a64Group}&quot;)</kbd> in the AQL Command box.</li>
+                  <li>Use the <strong>Category</strong> filter to narrow by type: <em>Demos</em>, <em>Games</em>, <em>Tools</em>, <em>C128</em>.</li>
+                </ul>
+              </li>
+            </ol>
+          </div>
+
+          <p class="a64-aql-note">
+            Tip: save <kbd>(group:&quot;{ARCHIVE_CONFIG.a64Group}&quot;)</kbd> as a <strong>Saved AQL Query</strong> for quick one-click access to all your entries.
+          </p>
+
+          <p class="a64-footnote">
+            Only C64, C128, GEOS, and CP/M files are indexed for Assembly64 access.
+            Files for other platforms are available in the browser file listing above.
+          </p>
+        </div>
+      </div>
+
+      <!-- ── Meatloaf access ─────────────────────────────────────────── -->
+      <div class="meatloaf-note">
+        <div class="meatloaf-note-header">
+          <span class="meatloaf-note-title">Meatloaf Wi-Fi access</span>
+          <span class="meatloaf-note-sub">Commodore IEC &middot; no terminal needed</span>
+        </div>
+        <div class="meatloaf-note-body">
+          <p>
+            Browse and load these files directly on a Commodore with a
+            <a href="https://meatloaf.cc" target="_blank" rel="noopener">Meatloaf</a> Wi-Fi IEC device.
+            Use the ML button on each file row to get its specific load command.
+          </p>
+
+          <div class="ml-cmd-grid">
+            <div class="ml-cmd-block">
+              <p class="ml-label">Main directory &mdash; URL</p>
+              <div class="ml-cmd">
+                <code>LOAD"HTTPS://{mlHostUpper}",8</code>
+                <button class="copy-btn" data-copy={`LOAD"HTTPS://${mlHostUpper}",8`} aria-label="Copy">
+                  <i class="fas fa-copy"></i>
+                </button>
+              </div>
+            </div>
+            <div class="ml-cmd-block">
+              <p class="ml-label">Main directory &mdash; shortcode</p>
+              <div class="ml-cmd">
+                <code>LOAD"ML:{ARCHIVE_CONFIG.meatloafShortcode}",8</code>
+                <button class="copy-btn" data-copy={`LOAD"ML:${ARCHIVE_CONFIG.meatloafShortcode}",8`} aria-label="Copy">
+                  <i class="fas fa-copy"></i>
+                </button>
+              </div>
+            </div>
+            <div class="ml-cmd-block">
+              <p class="ml-label">Specific file &mdash; URL</p>
+              <div class="ml-cmd">
+                <code>LOAD"HTTPS://{mlHostUpper}/FILENAME.PRG",8</code>
+                <button class="copy-btn" data-copy={`LOAD"HTTPS://${mlHostUpper}/FILENAME.PRG",8`} aria-label="Copy">
+                  <i class="fas fa-copy"></i>
+                </button>
+              </div>
+            </div>
+            <div class="ml-cmd-block">
+              <p class="ml-label">Specific file &mdash; shortcode</p>
+              <div class="ml-cmd">
+                <code>LOAD"ML:{ARCHIVE_CONFIG.meatloafShortcode}/FILENAME.PRG",8</code>
+                <button class="copy-btn" data-copy={`LOAD"ML:${ARCHIVE_CONFIG.meatloafShortcode}/FILENAME.PRG",8`} aria-label="Copy">
+                  <i class="fas fa-copy"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <p class="ml-footnote">
+            Replace <strong>8</strong> with your Meatloaf's configured IEC device number.
+            See the <a href="https://github.com/idolpx/meatloaf/wiki/Using-Your-Meatloaf" target="_blank" rel="noopener">Meatloaf wiki</a> for full setup instructions.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</Layout>
+
+<style>
+  .files-page { padding: 100px 0 64px; }
+
+  .section-head { margin-bottom: 16px; }
+
+  .files-intro {
+    max-width: 680px;
+    line-height: 1.7;
+    color: #444;
+    margin-bottom: 36px;
+  }
+
+  /* Platform grid */
+  .platform-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+
+  .platform-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 20px 18px;
+    border: 1px solid #e0e0e6;
+    border-radius: 6px;
+    background: #fff;
+    text-decoration: none;
+    transition: box-shadow .15s, border-color .15s;
+  }
+  .platform-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.10); border-color: #ef5826; }
+
+  .platform-name { font-size: 15px; font-weight: 700; color: #222; }
+  .platform-card:hover .platform-name { color: #ef5826; }
+
+  .platform-badge {
+    font-size: 10px; font-weight: 700; letter-spacing: .06em;
+    background: #ef5826; color: #fff;
+    padding: 2px 7px; border-radius: 3px;
+  }
+
+  /* Loose root files */
+  .loose-files { margin-bottom: 40px; }
+  .loose-title { font-size: 16px; font-weight: 600; color: #555; margin: 0 0 12px; }
+
+  /* ── Assembly64 section ──────────────────────────────────────────── */
+  .a64-note {
+    border: 1px solid #e0e0e6;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    overflow: hidden;
+    max-width: 900px;
+    margin-bottom: 32px;
+    scroll-margin-top: 92px;
+  }
+
+  .a64-note-header {
+    background: #333;
+    color: #fff;
+    padding: 14px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .a64-note-title { font-weight: 700; font-size: 15px; letter-spacing: .02em; }
+
+  .a64-note-sub {
+    font-size: 12px; background: #ef5826; color: #fff;
+    padding: 3px 8px; border-radius: 3px; font-weight: 600; letter-spacing: .04em;
+  }
+
+  .a64-note-body { padding: 20px 24px 24px; }
+  .a64-note-body > p { color: #555; line-height: 1.6; margin-bottom: 18px; }
+
+  .a64-url-block { margin-bottom: 20px; }
+
+  .a64-label {
+    font-size: 12px; font-weight: 700; color: #888;
+    text-transform: uppercase; letter-spacing: .06em; margin: 0 0 5px;
+  }
+
+  .a64-cmd {
+    display: flex; align-items: center; gap: 8px;
+    background: #1e1e1e; border: 1px solid #444;
+    border-radius: 4px; padding: 10px 14px;
+  }
+
+  .a64-cmd code {
+    flex: 1; background: none; color: #fff; font-size: 13px;
+    padding: 0; margin: 0; display: block; word-break: break-all;
+  }
+
+  .a64-steps { margin-bottom: 16px; }
+  .a64-steps-title { font-size: 13px; font-weight: 700; color: #555; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .05em; }
+  .a64-steps ol { margin: 0; padding-left: 20px; color: #555; line-height: 1.7; font-size: 14px; }
+  .a64-steps li { margin-bottom: 4px; }
+  .a64-steps ol ul { list-style-type: disc; margin: 6px 0 2px; padding-left: 20px; }
+  .a64-steps ol ul li { margin-bottom: 2px; }
+  .a64-steps kbd, .a64-aql-note kbd {
+    font-family: monospace;
+    font-size: 12px;
+    background: #f0f0f0;
+    color: #333;
+    border: 1px solid #ccc;
+    border-bottom: 2px solid #bbb;
+    border-radius: 3px;
+    padding: 1px 6px;
+  }
+
+  .a64-aql-note {
+    font-size: 13px; color: #555; line-height: 1.6;
+    background: #f7f7fb; border-left: 3px solid #ef5826;
+    padding: 8px 12px; border-radius: 0 4px 4px 0;
+    margin-bottom: 16px;
+  }
+
+  .a64-footnote { font-size: 13px; color: #777; margin: 0; }
+
+  /* ── Meatloaf section ────────────────────────────────────────────── */
+  .meatloaf-note {
+    border: 1px solid #e0e0e6;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    overflow: hidden;
+    max-width: 900px;
+  }
+
+  .meatloaf-note-header {
+    background: #333;
+    color: #fff;
+    padding: 14px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .meatloaf-note-title { font-weight: 700; font-size: 15px; letter-spacing: .02em; }
+
+  .meatloaf-note-sub {
+    font-size: 12px; background: #ef5826; color: #fff;
+    padding: 3px 8px; border-radius: 3px; font-weight: 600; letter-spacing: .04em;
+  }
+
+  .meatloaf-note-body { padding: 20px 24px 24px; }
+  .meatloaf-note-body > p { color: #555; line-height: 1.6; margin-bottom: 18px; }
+
+  .ml-cmd-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .ml-label {
+    font-size: 12px; font-weight: 700; color: #888;
+    text-transform: uppercase; letter-spacing: .06em; margin: 0 0 5px;
+  }
+
+  .ml-cmd {
+    display: flex; align-items: center; gap: 8px;
+    background: #1e1e1e; border: 1px solid #444;
+    border-radius: 4px; padding: 10px 14px;
+  }
+
+  .ml-cmd code {
+    flex: 1; background: none; color: #fff; font-size: 12px;
+    padding: 0; margin: 0; display: block; word-break: break-all;
+  }
+
+  .copy-btn {
+    flex-shrink: 0; background: none; border: none; color: #aaa;
+    cursor: pointer; padding: 2px 4px; font-size: 13px; transition: color .15s;
+  }
+  .copy-btn:hover { color: #fff; }
+
+  .ml-footnote { font-size: 13px; color: #777; margin: 0; }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      navigator.clipboard?.writeText(btn.dataset.copy ?? '').then(() => {
+        const icon = btn.querySelector('i');
+        if (icon) { icon.className = 'fas fa-check'; setTimeout(() => { icon.className = 'fas fa-copy'; }, 1500); }
+      });
+    });
+  });
+</script>

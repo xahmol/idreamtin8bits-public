@@ -118,29 +118,19 @@ category integer (see "Screenshot cache key design" below).
 
 ### String filter matching (`name`, `group`, `handle`)
 
-> **Source note**: this section documents behaviour reported directly by the
-> Assembly64 creator about the official reference home server (Docker image
-> `freabemania/assembly64-home-server`), not something independently
-> confirmed from published documentation. Treat the wildcard/exact-match
-> details as best-effort protocol compatibility, and re-verify against a
-> live Assembly64 client if exact behaviour matters for your deployment.
+> **Source note**: this behaviour was reported directly by the Assembly64
+> creator about the official reference home server (Docker image
+> `freabemania/assembly64-home-server`), not from published documentation.
 
-The reference server's stated semantics are: a bare value does an **exact**
-match, `%` is a SQL-LIKE wildcard (`a%` matches any name starting with "a"),
-and `@` alone means "match everything" (ignore this filter).
+A bare value does an **exact** match (case-insensitive); `%` is a SQL-LIKE
+wildcard (`a%` matches any name starting with "a"); a lone `@` means "match
+everything" (filter ignored). This is implemented in
+`matchesStringFilter()` in `src/lib/a64.ts`.
 
-This starter implements all three on top of (not instead of) substring
-matching, to stay compatible with simpler clients/queries that expect a bare
-value to behave as a "contains" search:
-
-1. `@` → filter ignored, matches everything.
-2. Value containing `%` → SQL-LIKE translation (`%` → regex `.*`, full match,
-   case-insensitive).
-3. Otherwise → case-insensitive substring match (original behaviour).
-
-See `matchesStringFilter()` in `src/lib/a64.ts` if you need to change this —
-e.g. to switch step 3 to exact-match if you confirm that's what the official
-client actually sends.
+This is a behavioural change from naive substring ("contains") matching —
+if you're querying with a partial name and expecting a "contains" match,
+add a trailing `%` (e.g. `name%`) or surround it on both sides
+(`%name%` matches if "name" appears anywhere).
 
 ---
 

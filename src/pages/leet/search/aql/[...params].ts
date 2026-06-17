@@ -21,8 +21,15 @@ export const GET: APIRoute = async ({ params, url }) => {
     }
   }
 
-  const query     = url.searchParams.get('query') ?? '';
-  const queryDict = parseAQL(decodeURIComponent(query));
+  // url.searchParams.get() already URL-decodes once. Some clients additionally
+  // double-encode the query value, so we decode again — but a literal '%'
+  // wildcard character (not part of valid percent-encoding) survives the first
+  // decode and would make a second decodeURIComponent() throw URIError, so
+  // fall back to the once-decoded value on failure instead of erroring out.
+  const query = url.searchParams.get('query') ?? '';
+  let decodedQuery = query;
+  try { decodedQuery = decodeURIComponent(query); } catch { /* literal % wildcard, etc. */ }
+  const queryDict = parseAQL(decodedQuery);
 
   const index  = await getA64Index();
   const result = searchIndex(index, queryDict, offset, limit);

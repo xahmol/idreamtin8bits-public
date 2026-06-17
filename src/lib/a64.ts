@@ -219,11 +219,10 @@ export function parseAQL(query: string): Record<string, string> {
 
 // ── Search ────────────────────────────────────────────────────────────────────
 
-// String-field matching for name/group/handle. Per the official home server
-// protocol: a bare value with no wildcard does a substring match (kept for
-// backward compatibility with existing clients/queries); '%' acts as a
-// SQL-LIKE wildcard (e.g. "a%" = starts with "a"); a lone '@' means
-// "match everything" (used by some clients to request an unfiltered field).
+// String-field matching for name/group/handle, per the official Assembly64
+// home server protocol (per creator clarification, 2026-06): a bare value
+// is an exact match; '%' is a SQL-LIKE wildcard (e.g. "a%" = starts with
+// "a"); a lone '@' means "match everything" (filter ignored).
 function matchesStringFilter(fieldValue: string, pattern: string): boolean {
   const field = fieldValue.toLowerCase();
   const pat   = pattern.toLowerCase();
@@ -232,7 +231,7 @@ function matchesStringFilter(fieldValue: string, pattern: string): boolean {
     const escaped = pat.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*');
     return new RegExp(`^${escaped}$`).test(field);
   }
-  return field.includes(pat);
+  return field === pat;
 }
 
 export function searchIndex(

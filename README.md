@@ -151,7 +151,9 @@ This is a deliberately narrow extraction. Left out, with reasons:
 
 ## License
 
+Licensed under the [GNU General Public License v3.0](LICENSE) (or later).
+
 The Meatloaf and Assembly64 protocol implementations are original code
 written against public protocol references (see `docs/` for credits and
 source links). No code from the Meatloaf or Assembly64 projects themselves
-is included. License this repository however suits your project.
+is included.

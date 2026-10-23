@@ -10,13 +10,24 @@
 
 import fs from 'node:fs';
 import nodePath from 'node:path';
+import { ARCHIVE_CONFIG } from '../config/retro-archive.ts';
 
 // Build-time manifest — present in the Lambda bundle even though the actual
 // files live on CloudFront and are absent from the Lambda's filesystem.
 export const GLOB_FILES = import.meta.glob(
   '../../public/files/**/*',
-  { eager: true, as: 'url' },
+  { eager: true, query: '?url', import: 'default' },
 ) as Record<string, string>;
+
+/**
+ * Origin for server-side fetches of our own static files (CDN HEAD/GET).
+ * Never the request's origin: request.url is derived from Host /
+ * X-Forwarded-Host, so trusting it would let a forged header point the
+ * server at an arbitrary host (SSRF). Dev keeps the local dev server.
+ */
+export function fetchOrigin(requestOrigin: string): string {
+  return import.meta.env.DEV ? requestOrigin : ARCHIVE_CONFIG.siteUrl;
+}
 
 export const SKIP = /^\.|\.html$|\.php$|^api$|^web\.config$/i;
 
@@ -100,7 +111,7 @@ export async function buildEntries(
           const cdnUrl = GLOB_MAP.get(relPath);
           if (cdnUrl) {
             try {
-              const res = await fetch(new URL(cdnUrl, origin).href, { method: 'HEAD' });
+              const res = await fetch(new URL(cdnUrl, fetchOrigin(origin)).href, { method: 'HEAD' });
               size = Number(res.headers.get('content-length') ?? 0);
             } catch {}
           }

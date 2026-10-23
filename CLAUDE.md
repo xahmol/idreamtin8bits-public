@@ -4,7 +4,7 @@ Memory bank for AI agents working on this repository.
 
 ## Purpose and architecture
 
-This is an Astro 5 SSR starter that exposes a small retro-software archive
+This is an Astro 7 SSR starter that exposes a small retro-software archive
 through two protocols:
 
 - **Meatloaf** (`src/pages/api/meatloaf/[...path].ts`) — serves C64 BASIC-style

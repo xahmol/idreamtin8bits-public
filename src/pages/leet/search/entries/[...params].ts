@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import fs from 'node:fs';
 import nodePath from 'node:path';
 import { getA64Index, findEntry, jsonResponse, A64_CORS } from '../../../../lib/a64.ts';
-import { GLOB_MAP, findFilesRoot } from '../../../../lib/files.ts';
+import { GLOB_MAP, findFilesRoot, fetchOrigin } from '../../../../lib/files.ts';
 
 export const GET: APIRoute = async ({ params, url }) => {
   const parts = (params.params ?? '').replace(/^\/|\/$/g, '').split('/');
@@ -29,7 +29,7 @@ export const GET: APIRoute = async ({ params, url }) => {
         const cdnUrl = GLOB_MAP.get(file.cdnPath);
         if (cdnUrl) {
           try {
-            const res = await fetch(new URL(cdnUrl, url.origin).href, { method: 'HEAD' });
+            const res = await fetch(new URL(cdnUrl, fetchOrigin(url.origin)).href, { method: 'HEAD' });
             size = Number(res.headers.get('content-length') ?? 0);
           } catch {}
         }

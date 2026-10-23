@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getA64Index, findEntry, A64_CORS } from '../../../../lib/a64.ts';
+import { fetchOrigin } from '../../../../lib/files.ts';
 
 export const GET: APIRoute = async ({ params, url }) => {
   const parts = (params.params ?? '').replace(/^\/|\/$/g, '').split('/');
@@ -16,7 +17,7 @@ export const GET: APIRoute = async ({ params, url }) => {
     return new Response(null, { status: 404, headers: A64_CORS });
   }
 
-  const screenshotUrl = new URL(`/a64-screenshots/${entry.id}.png`, url.origin).href;
+  const screenshotUrl = new URL(`/a64-screenshots/${entry.id}.png`, fetchOrigin(url.origin)).href;
   const imgRes = await fetch(screenshotUrl);
   if (!imgRes.ok) {
     return new Response(null, { status: 404, headers: A64_CORS });

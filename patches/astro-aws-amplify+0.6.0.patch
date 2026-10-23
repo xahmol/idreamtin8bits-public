@@ -1,0 +1,26 @@
+diff --git a/node_modules/astro-aws-amplify/src/server.ts b/node_modules/astro-aws-amplify/src/server.ts
+index f6e08c6..4e37a4d 100644
+--- a/node_modules/astro-aws-amplify/src/server.ts
++++ b/node_modules/astro-aws-amplify/src/server.ts
+@@ -99,6 +99,21 @@ const server = createServer(async (req, res) => {
+     return;
+   }
+ 
++  // In AWS Amplify Lambda compute the request URL hostname resolves to
++  // 'localhost' because the compute proxy does not forward x-forwarded-host.
++  // Rewrite the hostname to the canonical site URL so packages like
++  // Keystatic build correct absolute URLs (e.g. OAuth callback URIs).
++  if (app.manifest.site) {
++    const requestUrl = new URL(request.url);
++    if (requestUrl.hostname === 'localhost' || requestUrl.hostname === '127.0.0.1') {
++      const siteUrl = new URL(String(app.manifest.site));
++      requestUrl.protocol = siteUrl.protocol;
++      requestUrl.hostname = siteUrl.hostname;
++      requestUrl.port = '';
++      request = new Request(requestUrl.toString(), request);
++    }
++  }
++
+   const response = await als.run(request.url, () =>
+     app.render(request, { addCookieHeader: true }),
+   );

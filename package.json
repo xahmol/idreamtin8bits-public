@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "license": "GPL-3.0-or-later",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "astro dev",
@@ -14,11 +14,11 @@
     "postinstall": "patch-package"
   },
   "dependencies": {
-    "@astrojs/markdoc": "^0.13.3",
-    "@tailwindcss/postcss": "^4.2.4",
-    "astro": "^5.18.1",
-    "astro-aws-amplify": "0.4.0",
-    "tailwindcss": "^4.2.4"
+    "@astrojs/markdoc": "^2.1.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.4.2",
+    "astro-aws-amplify": "0.6.0",
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "patch-package": "^8.0.1"

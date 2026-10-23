@@ -2,6 +2,7 @@
 import { defineConfig } from 'astro/config';
 import amplify from 'astro-aws-amplify';
 import markdoc from '@astrojs/markdoc';
+import tailwindcss from '@tailwindcss/vite';
 
 // https://astro.build/config
 //
@@ -12,17 +13,24 @@ import markdoc from '@astrojs/markdoc';
 export default defineConfig({
   site: 'https://mysite.com', // update to match ARCHIVE_CONFIG.siteUrl
   output: 'server',
-  adapter: amplify(),
+  adapter: amplify({ runtime: 'nodejs24.x' }),
+  // Origin (CSRF) check and security headers live in src/middleware.ts
+  // (src/lib/security.ts): Astro's own check compares Origin with the
+  // request URL, which the Amplify adapter patch pins to the site URL, so it
+  // would reject POSTs made from a www. host.
   security: {
     checkOrigin: false,
   },
+  // Astro 7 defaults to 'jsx', which drops whitespace between inline elements.
+  compressHTML: true,
   integrations: [
     markdoc(),
   ],
   vite: {
+    plugins: [tailwindcss()],
     // Vite/esbuild only treats known web-asset extensions as binary assets.
     // Add every retro file extension you plan to serve so Astro emits a
-    // CDN URL via import.meta.glob(..., { as: 'url' }) instead of trying
+    // CDN URL via import.meta.glob(..., { query: '?url' }) instead of trying
     // to parse the file as source code.
     assetsInclude: [
       '**/*.prg', '**/*.p00',

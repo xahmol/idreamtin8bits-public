@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import fs from 'node:fs';
 import nodePath from 'node:path';
 import { getA64Index, findEntry, A64_CORS } from '../../../../lib/a64.ts';
-import { GLOB_MAP, findFilesRoot } from '../../../../lib/files.ts';
+import { GLOB_MAP, findFilesRoot, fetchOrigin } from '../../../../lib/files.ts';
 
 export const GET: APIRoute = async ({ params, url }) => {
   // URL: /leet/search/bin/{itemId}/{categoryId}/{fileId}[/{fileId1}/.../{fileId6}]
@@ -48,7 +48,7 @@ export const GET: APIRoute = async ({ params, url }) => {
     if (!cdnUrl) {
       return new Response(JSON.stringify({ error: 'File unavailable' }), { status: 404, headers: A64_CORS });
     }
-    const fileRes = await fetch(new URL(cdnUrl, url.origin).href);
+    const fileRes = await fetch(new URL(cdnUrl, fetchOrigin(url.origin)).href);
     if (!fileRes.ok) {
       return new Response(JSON.stringify({ error: 'Fetch failed' }), { status: 502, headers: A64_CORS });
     }

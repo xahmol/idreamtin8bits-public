@@ -1,6 +1,6 @@
 # Retro Archive Starter — Meatloaf + Assembly64
 
-An Astro 5 starter for running a small retro/8-bit software archive that is
+An Astro 7 starter for running a small retro/8-bit software archive that is
 directly accessible from two niche but well-loved retro-computing clients:
 
 - **[Meatloaf](https://meatloaf.cc)** — a Wi-Fi IEC Serial device for real

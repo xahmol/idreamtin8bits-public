@@ -57,13 +57,14 @@ import type { APIRoute } from 'astro';
 import fs from 'node:fs';
 import nodePath from 'node:path';
 import { ARCHIVE_CONFIG } from '../../../config/retro-archive.ts';
+import { fetchOrigin } from '../../../lib/files.ts';
 
 // Build-time file discovery — Vite resolves these paths at compile time so the
 // Lambda knows what files exist and where to fetch them on the CDN.
 // assetsInclude in astro.config.mjs makes Vite treat binary extensions as assets.
 const ASSET_URLS = import.meta.glob(
   '../../../../public/files/**/*',
-  { eager: true, as: 'url' },
+  { eager: true, query: '?url', import: 'default' },
 ) as Record<string, string>;
 
 // Normalise glob keys to paths relative to public/files/
@@ -237,7 +238,8 @@ function fileResponse(data: ArrayBuffer | Uint8Array, name: string): Response {
 }
 
 function htmlPage(subPath: string): Response {
-  const pathNote = subPath ? ` Path: /${subPath}` : '';
+  const esc = (s: string) => s.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+  const pathNote = subPath ? ` Path: /${esc(subPath)}` : '';
   return new Response(
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Meatloaf</title></head>` +
     `<body><p>This endpoint serves Commodore directory listings to ` +
@@ -264,7 +266,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 
   const reqUrl = new URL(request.url);
   const hostname = reqUrl.hostname;
-  const origin = reqUrl.origin;
+  const origin = fetchOrigin(reqUrl.origin);
   // When accessed via ARCHIVE_CONFIG.meatloafHostname, emit a path-only
   // Meatloaf-Debug header without the /api/meatloaf/ prefix so the firmware
   // constructs file URLs relative to that hostname (e.g. /c64/file.prg, not
